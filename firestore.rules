@@ -1,0 +1,96 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Project: { name, description, targetLanguage, createdBy, createdAt }
+    // SourceElement: { projectId, name, content, convertedContent, targetLanguage, status, createdAt }
+    // InputFile: { elementId, name, path, content }
+    // OutputFile: { elementId, type, name, path, content }
+    // ConversionReport: { elementId, totalLines, convertedLines, errors, warnings, unsupportedStatements }
+    // TestCase: { projectId, elementId, name, input, expectedOutput }
+    // ExecutionResult: { testCaseId, type, actualOutput, status, executedAt }
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (request.auth.token.email == "vthejavathu@gmail.com" ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidProject(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.targetLanguage in ['Python', 'Java', 'C', 'C#', 'C++'] &&
+             data.createdBy is string &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidElement(data) {
+      return data.projectId is string && 
+             data.name is string && data.name.size() > 0 && data.name.size() < 255 &&
+             data.content is string && data.content.size() < 1000000 &&
+             data.status in ['Pending', 'Processing', 'Completed', 'Failed'] &&
+             (!('convertedContent' in data) || (data.convertedContent is string && data.convertedContent.size() < 1000000)) &&
+             (!('targetLanguage' in data) || (data.targetLanguage is string && data.targetLanguage.size() < 50));
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProject(request.resource.data) && 
+                    request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin());
+      allow delete: if isAuthenticated() && (isOwner(resource.data.createdBy) || isAdmin());
+
+      // Elements
+      match /elements/{elementId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && isValidElement(request.resource.data) &&
+                      request.resource.data.projectId == projectId &&
+                      (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+        allow update: if isAuthenticated() && 
+                      (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+        allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+
+        match /inputFiles/{fileId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+        match /outputFiles/{fileId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+        match /reports/{reportId} {
+          allow read: if isAuthenticated();
+          allow write: if isAuthenticated();
+        }
+
+        match /testCases/{testCaseId} {
+          allow read, write: if isAuthenticated();
+        }
+      }
+    }
+
+    // Users (for roles)
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}
