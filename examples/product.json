@@ -1,0 +1,18 @@
+[
+  {
+    "id": "1",
+    "name": "Widget A",
+    "price": 19.99,
+    "category": "Electronics",
+    "stock": 100,
+    "tags": ["new", "sale"]
+  },
+  {
+    "id": "2",
+    "name": "Widget B",
+    "price": 29.99,
+    "category": "Home",
+    "stock": 50,
+    "tags": ["popular"]
+  }
+]

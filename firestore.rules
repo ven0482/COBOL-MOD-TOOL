@@ -9,6 +9,8 @@ service cloud.firestore {
     // InputFile: { elementId, name, path, content }
     // OutputFile: { elementId, type, name, path, content }
     // ConversionReport: { elementId, totalLines, convertedLines, errors, warnings, unsupportedStatements }
+    // Rule: { elementId, projectId, name, description, category, logic, createdAt, version }
+    // RuleVersion: { ruleId, version, description, logic, createdAt }
     // TestCase: { projectId, elementId, name, input, expectedOutput }
     // ExecutionResult: { testCaseId, type, actualOutput, status, executedAt }
     // ===============================================================
@@ -50,6 +52,25 @@ service cloud.firestore {
              (!('targetLanguage' in data) || (data.targetLanguage is string && data.targetLanguage.size() < 50));
     }
 
+    function isValidRule(data) {
+      return data.projectId is string &&
+             data.elementId is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 255 &&
+             data.description is string && data.description.size() < 2000 &&
+             data.category is string && data.category.size() < 100 &&
+             data.logic is string && data.logic.size() < 1000000 &&
+             data.version is number && data.version >= 1 &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidRuleVersion(data) {
+      return data.ruleId is string &&
+             data.version is number && data.version >= 1 &&
+             data.description is string && data.description.size() < 2000 &&
+             data.logic is string && data.logic.size() < 1000000 &&
+             isValidDateString(data.createdAt);
+    }
+
     // Projects
     match /projects/{projectId} {
       allow read: if isAuthenticated();
@@ -83,6 +104,25 @@ service cloud.firestore {
 
         match /testCases/{testCaseId} {
           allow read, write: if isAuthenticated();
+        }
+
+        match /rules/{ruleId} {
+          allow read: if isAuthenticated();
+          allow create: if isAuthenticated() && isValidRule(request.resource.data) &&
+                        request.resource.data.projectId == projectId &&
+                        request.resource.data.elementId == elementId &&
+                        (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+          allow update: if isAuthenticated() && 
+                        (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+          allow delete: if isAuthenticated() && (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+
+          match /versions/{versionId} {
+            allow read: if isAuthenticated();
+            allow create: if isAuthenticated() && isValidRuleVersion(request.resource.data) &&
+                          request.resource.data.ruleId == ruleId &&
+                          (isOwner(get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy) || isAdmin());
+            allow update, delete: if isAdmin();
+          }
         }
       }
     }

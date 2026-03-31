@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>My Google AI Studio App</title>
+    <script>
+      // Early suppression of ResizeObserver errors
+      window.addEventListener('error', function(e) {
+        if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || 
+            e.message === 'ResizeObserver loop limit exceeded') {
+          e.stopImmediatePropagation();
+          var overlay = document.querySelector('[id^="webpack-dev-server-client-overlay"]');
+          if (overlay) overlay.style.display = 'none';
+        }
+      });
+    </script>
   </head>
   <body>
     <div id="root"></div>
