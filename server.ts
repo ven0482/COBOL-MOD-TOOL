@@ -385,8 +385,17 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const hmrPort = Number(process.env.VITE_HMR_PORT || 24679);
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === "true"
+          ? false
+          : {
+              port: hmrPort,
+              clientPort: hmrPort,
+            },
+      },
       appType: "spa",
     });
     app.use(vite.middlewares);
@@ -398,9 +407,16 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+  await new Promise<void>((resolve, reject) => {
+    const server = app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+      resolve();
+    });
+    server.on("error", reject);
   });
 }
 
-startServer();
+startServer().catch((err) => {
+  console.error("Server startup failed:", err);
+  process.exit(1);
+});

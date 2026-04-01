@@ -75,7 +75,6 @@ import {
   Download,
   GripVertical,
   EyeOff,
-  Settings2,
   FileText,
   LayoutGrid,
   Maximize2,
@@ -118,6 +117,7 @@ interface ConversionReport {
   errors: string[];
   warnings: string[];
   unsupportedStatements: string[];
+  programStatistics?: any;
 }
 
 interface Rule {
@@ -215,6 +215,128 @@ const extractFileNames = (cobolCode: string) => {
   }
   
   return fileNames;
+};
+
+const createDefaultProgramStats = (programName: string, linesOfCode: number) => ({
+  programName,
+  sizeMetrics: {
+    linesOfCode,
+    commentLines: 0,
+    blankLines: 0,
+    sections: 0,
+    paragraphs: 0,
+    statements: 0
+  },
+  complexityMetrics: {
+    cyclomaticComplexity: 0,
+    riskLevel: "LOW",
+    ifCount: 0,
+    evaluateCount: 0,
+    performCount: 0,
+    nestedDepth: 0,
+    gotoCount: 0,
+    alterCount: 0
+  },
+  dataMetrics: {
+    totalVariables: 0,
+    groupItems: 0,
+    elementaryItems: 0,
+    picXCount: 0,
+    pic9Count: 0,
+    comp3Count: 0,
+    redefinesCount: 0,
+    occursCount: 0
+  },
+  fileMetrics: {
+    inputFiles: 0,
+    outputFiles: 0,
+    readOperations: 0,
+    writeOperations: 0,
+    rewriteOperations: 0,
+    fileTypes: []
+  },
+  databaseMetrics: {
+    sqlStatements: 0,
+    selectCount: 0,
+    insertCount: 0,
+    updateCount: 0,
+    deleteCount: 0,
+    cursorCount: 0
+  },
+  dependencyMetrics: {
+    callCount: 0,
+    calledPrograms: [],
+    copybooksUsed: []
+  },
+  cicsMetrics: {
+    cicsCommands: 0,
+    mapsUsed: [],
+    transactionIds: []
+  },
+  qualityMetrics: {
+    deadCode: 0,
+    unreachableCode: 0,
+    duplicateLogic: 0,
+    hardcodedValues: 0
+  },
+  conversionReadiness: {
+    autoConversionPercent: 0,
+    manualIntervention: "LOW",
+    unsupportedConstructs: [],
+    structuredCodePercent: 0
+  },
+  performanceIndicators: {
+    loopCount: 0,
+    nestedLoops: 0,
+    fileIOOperations: 0,
+    dbCalls: 0
+  },
+  securityIndicators: {
+    hardcodedSensitiveData: false,
+    sensitiveFieldsDetected: []
+  },
+  maintainability: {
+    maintainabilityIndex: 0,
+    avgParagraphLength: 0
+  },
+  summary: {
+    overallRiskScore: 0,
+    riskLevel: "LOW",
+    keyIssues: [],
+    recommendation: ""
+  }
+});
+
+const normalizeProgramStats = (stats: any, programName: string, linesOfCode: number) => {
+  const fallback = createDefaultProgramStats(programName, linesOfCode);
+  const merged = {
+    ...fallback,
+    ...stats,
+    programName: stats?.programName || programName,
+    sizeMetrics: { ...fallback.sizeMetrics, ...(stats?.sizeMetrics || {}) },
+    complexityMetrics: { ...fallback.complexityMetrics, ...(stats?.complexityMetrics || {}) },
+    dataMetrics: { ...fallback.dataMetrics, ...(stats?.dataMetrics || {}) },
+    fileMetrics: { ...fallback.fileMetrics, ...(stats?.fileMetrics || {}) },
+    databaseMetrics: { ...fallback.databaseMetrics, ...(stats?.databaseMetrics || {}) },
+    dependencyMetrics: { ...fallback.dependencyMetrics, ...(stats?.dependencyMetrics || {}) },
+    cicsMetrics: { ...fallback.cicsMetrics, ...(stats?.cicsMetrics || {}) },
+    qualityMetrics: { ...fallback.qualityMetrics, ...(stats?.qualityMetrics || {}) },
+    conversionReadiness: { ...fallback.conversionReadiness, ...(stats?.conversionReadiness || {}) },
+    performanceIndicators: { ...fallback.performanceIndicators, ...(stats?.performanceIndicators || {}) },
+    securityIndicators: { ...fallback.securityIndicators, ...(stats?.securityIndicators || {}) },
+    maintainability: { ...fallback.maintainability, ...(stats?.maintainability || {}) },
+    summary: { ...fallback.summary, ...(stats?.summary || {}) }
+  };
+
+  const cc = Number(merged.complexityMetrics.cyclomaticComplexity || 0);
+  if (!stats?.complexityMetrics?.riskLevel) {
+    merged.complexityMetrics.riskLevel = cc > 20 ? "HIGH" : cc >= 10 ? "MEDIUM" : "LOW";
+  }
+  if (!stats?.summary?.riskLevel) {
+    merged.summary.riskLevel = merged.complexityMetrics.riskLevel;
+  }
+
+  return merged;
 };
 
 const ByteRuler = ({ width = 80 }: { width?: number }) => {
@@ -1006,7 +1128,7 @@ const IDERunner = ({
   );
 };
 
-const Navbar = ({ user, onSignOut, onResetWorkspace, theme, setTheme }: { user: User; onSignOut: () => void; onResetWorkspace: () => void; theme: keyof typeof themes; setTheme: (theme: keyof typeof themes) => void }) => (
+const Navbar = ({ user, onSignOut, theme }: { user: User; onSignOut: () => void; theme: keyof typeof themes }) => (
   <nav className={cn("h-10 flex items-center justify-between px-4 border-b sticky top-0 z-50", themes[theme].sidebar, themes[theme].text, themes[theme].border)}>
     <div className="flex items-center gap-4">
       <div className="bg-indigo-600 p-1.5 rounded">
@@ -1015,7 +1137,6 @@ const Navbar = ({ user, onSignOut, onResetWorkspace, theme, setTheme }: { user: 
       <span className="font-bold text-lg tracking-tight text-gray-100">COBOL Modernizer</span>
     </div>
     <div className="flex items-center gap-4">
-      <ThemeSwitcher theme={theme} setTheme={setTheme} />
       <div className="relative">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
         <input 
@@ -1026,14 +1147,6 @@ const Navbar = ({ user, onSignOut, onResetWorkspace, theme, setTheme }: { user: 
       </div>
       <button className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-indigo-400 transition-colors"><Bell className="w-5 h-5" /></button>
       <button className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-indigo-400 transition-colors"><Settings className="w-5 h-5" /></button>
-      <button 
-        onClick={onResetWorkspace}
-        className="flex items-center gap-2 px-3 py-1.5 bg-red-900/10 hover:bg-red-900/30 text-red-400 rounded-md text-xs font-bold transition-all border border-red-900/20"
-        title="Delete all projects and start fresh"
-      >
-        <Trash2 className="w-3.5 h-3.5" />
-        Reset Workspace
-      </button>
       <div className="flex items-center gap-3 ml-2 pl-4 border-l border-white/5">
         <div className="text-right hidden sm:block">
           <p className="text-xs font-bold text-gray-200">{user.displayName}</p>
@@ -1132,25 +1245,8 @@ const TabButton = ({ active, label, icon: Icon, onClick, color }: any) => (
   </button>
 );
 
-const ThemeSwitcher = ({ theme, setTheme }: any) => (
-  <div className={cn("flex items-center gap-2 rounded-full p-1 border", themes[theme].border, themes[theme].sidebar)}>
-    {Object.keys(themes).map((t) => (
-      <button
-        key={t}
-        onClick={() => setTheme(t)}
-        className={cn(
-          "w-6 h-6 rounded-full transition-all",
-          theme === t ? "ring-2 ring-indigo-500 ring-offset-2" : "opacity-50 hover:opacity-100",
-          t === 'dark' ? 'bg-gray-900' : 'bg-white border border-gray-300'
-        )}
-        title={t}
-      />
-    ))}
-  </div>
-);
-
 export default function App() {
-  const [theme, setTheme] = useState<keyof typeof themes>('dark');
+  const theme: keyof typeof themes = 'regular';
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -1171,6 +1267,8 @@ export default function App() {
   const [elements, setElements] = useState<SourceElement[]>([]);
   const [activeElement, setActiveElement] = useState<SourceElement | null>(null);
   const [activeTab, setActiveTab] = useState<'source' | 'destination' | 'input' | 'output' | 'report' | 'repository' | 'compare' | 'synthetic-data' | 'ide' | 'rules'>('source');
+  const [reportSubTab, setReportSubTab] = useState<'summary' | 'kpi'>('summary');
+  const [openKpiSections, setOpenKpiSections] = useState<string[]>([]);
   const [viewLanguage, setViewLanguage] = useState<string>('Java');
   const [sourceViewLanguage, setSourceViewLanguage] = useState<string>('COBOL');
   const [isCreatingProject, setIsCreatingProject] = useState(false);
@@ -1196,7 +1294,6 @@ export default function App() {
     { id: 'input', label: 'Input Files', icon: FolderOpen, color: '#4f46e5', visible: false },
     { id: 'output', label: 'Output Files', icon: CheckCircle, color: '#16a34a', visible: false },
   ]);
-  const [isTabSettingsOpen, setIsTabSettingsOpen] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>, type: 'input' | 'output') => {
     const file = event.target.files?.[0];
@@ -1407,7 +1504,16 @@ export default function App() {
     const q = query(collection(db, `projects/${activeProject.id}/elements/${activeElement.id}/reports`));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        setReport({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as ConversionReport);
+        const reports = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ConversionReport & { createdAt?: string; updatedAt?: string }));
+        reports.sort((a, b) => {
+          const aHasStats = a.programStatistics ? 1 : 0;
+          const bHasStats = b.programStatistics ? 1 : 0;
+          if (aHasStats !== bHasStats) return bHasStats - aHasStats;
+          const aTime = new Date(a.updatedAt || a.createdAt || 0).getTime();
+          const bTime = new Date(b.updatedAt || b.createdAt || 0).getTime();
+          return bTime - aTime;
+        });
+        setReport(reports[0] as ConversionReport);
       } else {
         setReport(null);
       }
@@ -1862,14 +1968,145 @@ export default function App() {
 
       const convertedCode = response.text;
 
-      // Simple parsing for report
       const lines = elementContent.split('\n').length;
+      const programName = (elementName || 'UNKNOWN').split('.')[0];
+      const statsPrompt = `
+You are an expert COBOL analyzer and modernization assistant.
+
+Analyze the given COBOL program and generate a detailed PROGRAM-LEVEL STATISTICS REPORT.
+
+### INPUT:
+${elementContent}
+
+---
+
+### OUTPUT FORMAT (STRICT JSON):
+
+{
+  "programName": "",
+  "sizeMetrics": {
+    "linesOfCode": 0,
+    "commentLines": 0,
+    "blankLines": 0,
+    "sections": 0,
+    "paragraphs": 0,
+    "statements": 0
+  },
+  "complexityMetrics": {
+    "cyclomaticComplexity": 0,
+    "riskLevel": "LOW | MEDIUM | HIGH",
+    "ifCount": 0,
+    "evaluateCount": 0,
+    "performCount": 0,
+    "nestedDepth": 0,
+    "gotoCount": 0,
+    "alterCount": 0
+  },
+  "dataMetrics": {
+    "totalVariables": 0,
+    "groupItems": 0,
+    "elementaryItems": 0,
+    "picXCount": 0,
+    "pic9Count": 0,
+    "comp3Count": 0,
+    "redefinesCount": 0,
+    "occursCount": 0
+  },
+  "fileMetrics": {
+    "inputFiles": 0,
+    "outputFiles": 0,
+    "readOperations": 0,
+    "writeOperations": 0,
+    "rewriteOperations": 0,
+    "fileTypes": ["VSAM", "SEQUENTIAL"]
+  },
+  "databaseMetrics": {
+    "sqlStatements": 0,
+    "selectCount": 0,
+    "insertCount": 0,
+    "updateCount": 0,
+    "deleteCount": 0,
+    "cursorCount": 0
+  },
+  "dependencyMetrics": {
+    "callCount": 0,
+    "calledPrograms": [],
+    "copybooksUsed": []
+  },
+  "cicsMetrics": {
+    "cicsCommands": 0,
+    "mapsUsed": [],
+    "transactionIds": []
+  },
+  "qualityMetrics": {
+    "deadCode": 0,
+    "unreachableCode": 0,
+    "duplicateLogic": 0,
+    "hardcodedValues": 0
+  },
+  "conversionReadiness": {
+    "autoConversionPercent": 0,
+    "manualIntervention": "LOW | MEDIUM | HIGH",
+    "unsupportedConstructs": [],
+    "structuredCodePercent": 0
+  },
+  "performanceIndicators": {
+    "loopCount": 0,
+    "nestedLoops": 0,
+    "fileIOOperations": 0,
+    "dbCalls": 0
+  },
+  "securityIndicators": {
+    "hardcodedSensitiveData": false,
+    "sensitiveFieldsDetected": []
+  },
+  "maintainability": {
+    "maintainabilityIndex": 0,
+    "avgParagraphLength": 0
+  },
+  "summary": {
+    "overallRiskScore": 0,
+    "riskLevel": "LOW | MEDIUM | HIGH",
+    "keyIssues": [],
+    "recommendation": ""
+  }
+}
+
+### RULES:
+1. Always return valid JSON only (no explanation).
+2. If a metric is not present, return 0 or empty array.
+3. Detect COBOL-specific constructs like GO TO, PERFORM THRU, REDEFINES, OCCURS, EXEC SQL, EXEC CICS.
+4. Estimate cyclomatic complexity based on decision points = IF + EVALUATE + loops + conditions.
+5. Assign riskLevel: LOW (<10), MEDIUM (10-20), HIGH (>20).
+6. Estimate autoConversionPercent based on structured code and unsupported constructs.
+7. Provide realistic approximation if exact count is hard.
+`;
+
+      let programStatistics = createDefaultProgramStats(programName, lines);
+      try {
+        const statsResponse = await ai.models.generateContent({
+          model: "gemini-3.1-pro-preview",
+          contents: statsPrompt,
+          config: { responseMimeType: "application/json" }
+        });
+        if (statsResponse?.text) {
+          let statsText = statsResponse.text.trim();
+          if (statsText.includes('```')) {
+            statsText = statsText.replace(/```json/g, '').replace(/```/g, '').trim();
+          }
+          programStatistics = normalizeProgramStats(JSON.parse(statsText), programName, lines);
+        }
+      } catch (statsErr) {
+        console.warn('Program statistics generation failed, using fallback metrics.', statsErr);
+      }
+
       const reportData = {
         totalLines: lines,
         convertedLines: lines,
         errors: [],
         warnings: [],
-        unsupportedStatements: []
+        unsupportedStatements: programStatistics?.conversionReadiness?.unsupportedConstructs || [],
+        programStatistics
       };
 
       // Update element with converted code
@@ -1881,7 +2118,9 @@ export default function App() {
       // Save report
       await addDoc(collection(db, `projects/${projectId}/elements/${elementId}/reports`), {
         elementId: elementId,
-        ...reportData
+        ...reportData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       });
 
       // Create placeholders based on COBOL code (if any new ones found)
@@ -2838,23 +3077,6 @@ export default function App() {
         user={user} 
         onSignOut={handleSignOut} 
         theme={theme}
-        setTheme={setTheme}
-        onResetWorkspace={async () => {
-          if (confirm('Are you sure you want to reset your workspace? This will delete ALL your projects and data permanently.')) {
-            try {
-              const q = query(collection(db, 'projects'), where('createdBy', '==', user.uid));
-              const snapshot = await getDocs(q);
-              for (const d of snapshot.docs) {
-                await deleteDoc(doc(db, 'projects', d.id));
-              }
-              setActiveProject(null);
-              setActiveElement(null);
-              toast.success('Workspace reset successfully');
-            } catch (err) {
-              toast.error('Failed to reset workspace');
-            }
-          }
-        }}
       />
       
       <div className="flex flex-1 overflow-hidden">
@@ -2957,13 +3179,6 @@ export default function App() {
                     onClick={() => setActiveTab(tab.id as any)} 
                   />
                 ))}
-                <button 
-                  onClick={() => setIsTabSettingsOpen(true)}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
-                  title="Tab Settings"
-                >
-                  <Settings2 className="w-5 h-5" />
-                </button>
               </div>
 
               {/* Content Area */}
@@ -3446,12 +3661,30 @@ export default function App() {
                           )}
                           {activeTab === 'report' && (
                             <div className="space-y-6">
-                              <h3 className="text-lg font-bold flex items-center gap-2">
-                                <BarChart3 className="w-5 h-5 text-blue-600" />
-                                Modernization Report
-                              </h3>
+                              <div className="flex items-center justify-between">
+                                <h3 className="text-lg font-bold flex items-center gap-2">
+                                  <BarChart3 className="w-5 h-5 text-blue-600" />
+                                  Modernization Report
+                                </h3>
+                                <div className="inline-flex items-center bg-gray-100 rounded-lg p-1">
+                                  <button
+                                    onClick={() => setReportSubTab('summary')}
+                                    className={cn("px-3 py-1 text-xs font-bold rounded-md", reportSubTab === 'summary' ? "bg-white text-blue-700 shadow-sm" : "text-gray-600")}
+                                  >
+                                    Summary
+                                  </button>
+                                  <button
+                                    onClick={() => setReportSubTab('kpi')}
+                                    className={cn("px-3 py-1 text-xs font-bold rounded-md", reportSubTab === 'kpi' ? "bg-white text-blue-700 shadow-sm" : "text-gray-600")}
+                                  >
+                                    KPI
+                                  </button>
+                                </div>
+                              </div>
                               {report ? (
                                 <div className="space-y-4">
+                                  {reportSubTab === 'summary' && (
+                                  <>
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                                       <p className="text-xs text-blue-600 font-bold uppercase">Total Lines</p>
@@ -3482,6 +3715,109 @@ export default function App() {
                                       <p className="text-3xl font-bold text-gray-900">{report.unsupportedStatements.length}</p>
                                     </div>
                                   </div>
+                                  </>
+                                  )}
+                                  {reportSubTab === 'kpi' && (() => {
+                                    const ps: any = normalizeProgramStats(
+                                      report.programStatistics || {},
+                                      (activeElement?.name || 'UNKNOWN').split('.')[0],
+                                      report.totalLines || 0
+                                    );
+
+                                    if (!report.programStatistics) {
+                                      ps.sizeMetrics.linesOfCode = report.totalLines || ps.sizeMetrics.linesOfCode;
+                                      ps.summary.keyIssues = [
+                                        ...(report.errors?.length ? [`${report.errors.length} conversion errors`] : []),
+                                        ...(report.warnings?.length ? [`${report.warnings.length} conversion warnings`] : []),
+                                      ];
+                                      ps.conversionReadiness.unsupportedConstructs = report.unsupportedStatements || [];
+                                    }
+
+                                    const sectionOrder = [
+                                      'sizeMetrics',
+                                      'complexityMetrics',
+                                      'dataMetrics',
+                                      'fileMetrics',
+                                      'databaseMetrics',
+                                      'dependencyMetrics',
+                                      'cicsMetrics',
+                                      'qualityMetrics',
+                                      'conversionReadiness',
+                                      'performanceIndicators',
+                                      'securityIndicators',
+                                      'maintainability',
+                                      'summary'
+                                    ];
+
+                                    const sectionTitle: Record<string, string> = {
+                                      sizeMetrics: 'Size Metrics',
+                                      complexityMetrics: 'Complexity Metrics',
+                                      dataMetrics: 'Data Metrics',
+                                      fileMetrics: 'File Metrics',
+                                      databaseMetrics: 'Database Metrics',
+                                      dependencyMetrics: 'Dependency Metrics',
+                                      cicsMetrics: 'CICS Metrics',
+                                      qualityMetrics: 'Quality Metrics',
+                                      conversionReadiness: 'Conversion Readiness',
+                                      performanceIndicators: 'Performance Indicators',
+                                      securityIndicators: 'Security Indicators',
+                                      maintainability: 'Maintainability',
+                                      summary: 'Summary'
+                                    };
+
+                                    const formatLabel = (key: string) => key
+                                      .replace(/([A-Z])/g, ' $1')
+                                      .replace(/^./, (s) => s.toUpperCase());
+
+                                    const formatValue = (value: any) => {
+                                      if (Array.isArray(value)) return value.length ? value.join(', ') : 'N/A';
+                                      if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+                                      if (value === null || value === undefined || value === '') return 'N/A';
+                                      return String(value);
+                                    };
+
+                                    return (
+                                      <div className="space-y-4">
+                                        {!report.programStatistics && (
+                                          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-800">
+                                            Showing KPI view generated from legacy report fields. Run Convert Code once to refresh all KPI metrics with full analyzer output.
+                                          </div>
+                                        )}
+                                        <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                          <p className="text-xs text-indigo-600 font-bold uppercase">Program Name</p>
+                                          <p className="text-xl font-bold text-indigo-900">{ps.programName || activeElement?.name || 'Unknown Program'}</p>
+                                        </div>
+
+                                        {sectionOrder.map((sectionKey) => {
+                                          const sectionData = ps[sectionKey];
+                                          if (!sectionData || typeof sectionData !== 'object') return null;
+                                          const isOpen = openKpiSections.includes(sectionKey);
+
+                                          return (
+                                            <div key={sectionKey} className="bg-white rounded-xl border border-gray-200">
+                                              <button
+                                                onClick={() => setOpenKpiSections(prev => prev.includes(sectionKey) ? prev.filter(s => s !== sectionKey) : [...prev, sectionKey])}
+                                                className="w-full flex items-center justify-between p-4 text-left"
+                                              >
+                                                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">{sectionTitle[sectionKey] || formatLabel(sectionKey)}</h4>
+                                                {isOpen ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                                              </button>
+                                              {isOpen && (
+                                                <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                                  {Object.entries(sectionData).map(([k, v]) => (
+                                                    <div key={k} className="bg-gray-50 border border-gray-100 rounded-lg p-3">
+                                                      <p className="text-[10px] font-bold uppercase text-gray-500">{formatLabel(k)}</p>
+                                                      <p className="text-sm font-semibold text-gray-900 mt-1 break-words">{formatValue(v)}</p>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              )}
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               ) : (
                                 <div className="p-12 text-center text-gray-400 border rounded-xl border-dashed">
@@ -4710,79 +5046,6 @@ export default function App() {
           </div>
         )}
 
-        {isTabSettingsOpen && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[110] p-4">
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
-            >
-              <div className="bg-[#001639] p-6 text-white flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-bold">Tab Settings</h2>
-                  <p className="text-blue-300 text-xs mt-1">Rearrange and toggle visibility of workspace tabs.</p>
-                </div>
-                <button onClick={() => setIsTabSettingsOpen(false)} className="p-2 hover:bg-white/10 rounded-full transition-all">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                <div className="space-y-2">
-                  {tabConfigs.map((tab, idx) => (
-                    <div key={tab.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <div className="flex flex-col gap-1">
-                        <button 
-                          disabled={idx === 0}
-                          onClick={() => moveTab(tab.id, 'up')}
-                          className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
-                        >
-                          <ChevronUp className="w-3 h-3" />
-                        </button>
-                        <button 
-                          disabled={idx === tabConfigs.length - 1}
-                          onClick={() => moveTab(tab.id, 'down')}
-                          className="p-1 hover:bg-gray-200 rounded disabled:opacity-30"
-                        >
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-                      </div>
-                      <div className="p-2 rounded-lg" style={{ backgroundColor: `${tab.color}15`, color: tab.color }}>
-                        <tab.icon className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1">
-                        <span className="text-sm font-bold text-gray-700">{tab.label}</span>
-                      </div>
-                      <button 
-                        onClick={() => toggleTabVisibility(tab.id)}
-                        className={cn(
-                          "px-3 py-1 rounded-full text-[10px] font-bold transition-all",
-                          tab.visible ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"
-                        )}
-                      >
-                        {tab.visible ? 'Visible' : 'Hidden'}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="p-6 pt-0 flex gap-3">
-                <button 
-                  onClick={() => setIsTabSettingsOpen(false)}
-                  className="flex-1 py-3 border rounded-xl font-bold text-gray-600 hover:bg-gray-50 transition-all"
-                >
-                  Back
-                </button>
-                <button 
-                  onClick={() => setIsTabSettingsOpen(false)}
-                  className="flex-1 py-3 bg-[#001639] text-white rounded-xl font-bold hover:bg-[#002659] transition-all shadow-lg shadow-blue-900/20"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
       </AnimatePresence>
       <div className="dynamic-cursor" />
     </div>
