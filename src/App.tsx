@@ -9,6 +9,8 @@ import {
   db, 
   googleProvider, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   signOut, 
   onAuthStateChanged, 
   collection, 
@@ -1316,6 +1318,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result?.user) {
+          toast.success('Successfully signed in');
+        }
+      } catch (err: any) {
+        console.error('Redirect sign in error details:', err);
+        toast.error(`Sign in failed (${err?.code || 'unknown'}): ${err?.message || 'Unknown error'}`);
+      }
+    };
+    void handleRedirectResult();
+  }, []);
+
+  useEffect(() => {
     if (!user) return;
     const q = query(collection(db, 'projects'), where('createdBy', '==', user.uid));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -1466,9 +1483,26 @@ export default function App() {
       toast.success('Successfully signed in');
     } catch (err: any) {
       console.error('Sign in error details:', err);
-      toast.error(`Sign in failed: ${err.message || 'Unknown error'}`);
-      if (err.code === 'auth/unauthorized-domain') {
-        toast.error('Domain not authorized in Firebase Console. See instructions below.');
+      const code = err?.code || 'unknown';
+      const message = err?.message || 'Unknown error';
+      let guidance = '';
+
+      if (code === 'auth/unauthorized-domain') {
+        guidance = `Authorize this domain in Firebase Console > Authentication > Settings > Authorized domains. Current host: ${window.location.hostname}`;
+      } else if (code === 'auth/operation-not-allowed') {
+        guidance = 'Enable Google sign-in in Firebase Console > Authentication > Sign-in method.';
+      } else if (code === 'auth/popup-blocked' || code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
+        guidance = 'Popup sign-in failed; falling back to redirect sign-in.';
+        toast.error(guidance);
+        await signInWithRedirect(auth, googleProvider);
+        return;
+      } else if (code === 'auth/network-request-failed') {
+        guidance = 'Network issue detected. Check connectivity and retry.';
+      }
+
+      toast.error(`Sign in failed (${code}): ${message}`);
+      if (guidance) {
+        toast.error(guidance);
       }
     }
   };
