@@ -1153,6 +1153,7 @@ export default function App() {
   const [theme, setTheme] = useState<keyof typeof themes>('dark');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -1476,6 +1477,7 @@ export default function App() {
   }, [activeElement, activeProject]);
 
   const handleSignIn = async () => {
+    setIsSigningIn(true);
     try {
       console.log('Starting sign in with popup...');
       const result = await signInWithPopup(auth, googleProvider);
@@ -1504,6 +1506,8 @@ export default function App() {
       if (guidance) {
         toast.error(guidance);
       }
+    } finally {
+      setIsSigningIn(false);
     }
   };
 
@@ -2791,11 +2795,12 @@ export default function App() {
     toast.success('Comparison complete with one-to-all matching');
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Toaster position="top-right" /><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
 
   if (!user) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[#001639] text-white p-4">
+        <Toaster position="top-right" />
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -2812,10 +2817,11 @@ export default function App() {
           </div>
           <button 
             onClick={handleSignIn}
-            className="w-full bg-[#00a1e0] hover:bg-[#008bc2] text-white font-bold py-4 px-8 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg"
+            disabled={isSigningIn}
+            className="w-full bg-[#00a1e0] hover:bg-[#008bc2] disabled:opacity-70 disabled:cursor-not-allowed text-white font-bold py-4 px-8 rounded-xl transition-all flex items-center justify-center gap-3 shadow-lg"
           >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="google" />
-            Sign in with Google
+            {isSigningIn ? 'Signing in...' : 'Sign in with Google'}
           </button>
           <div className="pt-8 border-t border-[#002b5c]">
             <p className="text-xs text-gray-500">Accelerate your legacy transformation with AI-powered code conversion and DB2 to Oracle SQL migration.</p>
