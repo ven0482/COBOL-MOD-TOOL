@@ -26,6 +26,7 @@ import {
   handleFirestoreError
 } from './firebase';
 import { GoogleGenAI, Type } from "@google/genai";
+import { themes } from './themes';
 import { 
   Layout, 
   Plus, 
@@ -883,16 +884,16 @@ const IDERunner = ({
             }}
           />
           {syntaxErrors.length > 0 && (
-            <div className="absolute bottom-4 right-4 max-w-xs bg-red-900/90 border border-red-700 rounded-lg p-3 shadow-2xl backdrop-blur-sm z-10 animate-in fade-in slide-in-from-bottom-2">
+            <div className="absolute bottom-4 right-4 max-w-xs bg-[#1a1a1a]/90 border border-white/10 backdrop-blur-md rounded-lg p-3 shadow-2xl z-10 animate-in fade-in slide-in-from-bottom-2">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 text-red-400">
                   <AlertCircle className="w-3 h-3" /> Syntax Errors ({syntaxErrors.length})
                 </span>
-                <button onClick={() => setSyntaxErrors([])} className="text-white/50 hover:text-white"><X className="w-3 h-3" /></button>
+                <button onClick={() => setSyntaxErrors([])} className="text-gray-500 hover:text-white"><X className="w-3 h-3" /></button>
               </div>
               <div className="space-y-1 max-h-32 overflow-auto custom-scrollbar">
                 {syntaxErrors.map((err, idx) => (
-                  <div key={idx} className="text-[10px] text-red-200 py-1 border-b border-red-800/50 last:border-0">
+                  <div key={idx} className="text-[10px] text-red-200 py-1 border-b border-white/5 last:border-0">
                     <span className="font-bold mr-2">Line {err.line}:</span> {err.message}
                   </div>
                 ))}
@@ -900,21 +901,21 @@ const IDERunner = ({
             </div>
           )}
         </div>
-        <div className="w-1/3 flex flex-col bg-[#1e1e1e]">
-          <div className="p-2 bg-[#252526] text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-[#3e3e3e] flex items-center gap-2">
+        <div className="w-1/3 flex flex-col bg-[#1a1a1a]">
+          <div className="p-2 bg-[#2d2d2d]/50 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-b border-white/10 flex items-center gap-2">
             <Code2 className="w-3 h-3" /> Terminal / Output
           </div>
-          <pre className="flex-1 p-4 font-mono text-sm overflow-auto whitespace-pre-wrap text-green-400 bg-[#000000]/30">
+          <pre className="flex-1 p-4 font-mono text-sm overflow-auto whitespace-pre-wrap text-green-400 bg-black/20">
             {output || 'Output will appear here after execution...'}
           </pre>
-          <div className="p-2 bg-[#252526] text-[10px] font-bold uppercase tracking-wider text-gray-400 border-t border-[#3e3e3e] flex items-center justify-between">
+          <div className="p-2 bg-[#2d2d2d]/50 text-[10px] font-bold uppercase tracking-wider text-gray-400 border-t border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Folder className="w-3 h-3" /> Output Repository
             </div>
             <div className="flex items-center gap-2">
               <button 
                 onClick={fetchFiles}
-                className="p-1 hover:bg-[#3e3e3e] rounded transition-colors"
+                className="p-1 hover:bg-white/10 rounded transition-colors"
                 title="Refresh files"
               >
                 <ArrowLeftRight className="w-3 h-3" />
@@ -922,7 +923,7 @@ const IDERunner = ({
               <span className="text-[8px] text-gray-500">Selected: {selectedOutputs.length}</span>
             </div>
           </div>
-          <div className="h-48 overflow-y-auto p-2 bg-[#252526]/50">
+          <div className="h-48 overflow-y-auto p-2 bg-[#1a1a1a]/50">
             {allOutputs.length > 0 ? (
               <div className="space-y-1">
                 {allOutputs.map(f => {
@@ -1003,63 +1004,61 @@ const IDERunner = ({
   );
 };
 
-const Navbar = ({ user, onSignOut, onResetWorkspace }: { user: User; onSignOut: () => void; onResetWorkspace: () => void }) => (
-  <nav className="h-14 bg-[#001639] text-white flex items-center justify-between px-4 border-b border-[#002b5c] sticky top-0 z-50">
+const Navbar = ({ user, onSignOut, onResetWorkspace, theme, setTheme }: { user: User; onSignOut: () => void; onResetWorkspace: () => void; theme: keyof typeof themes; setTheme: (theme: keyof typeof themes) => void }) => (
+  <nav className={cn("h-10 flex items-center justify-between px-4 border-b sticky top-0 z-50", themes[theme].sidebar, themes[theme].text, themes[theme].border)}>
     <div className="flex items-center gap-4">
-      <div className="bg-[#00a1e0] p-1.5 rounded">
+      <div className="bg-indigo-600 p-1.5 rounded">
         <Database className="w-5 h-5 text-white" />
       </div>
-      <span className="font-bold text-lg tracking-tight">ATLAS Modernizer</span>
-      <div className="hidden md:flex items-center gap-6 ml-8 text-sm font-medium text-gray-300">
-        <a href="#" className="hover:text-white border-b-2 border-transparent hover:border-[#00a1e0] h-14 flex items-center">Home</a>
-        <a href="#" className="hover:text-white border-b-2 border-transparent hover:border-[#00a1e0] h-14 flex items-center">Projects</a>
-        <a href="#" className="hover:text-white border-b-2 border-transparent hover:border-[#00a1e0] h-14 flex items-center">Reports</a>
-      </div>
+      <span className="font-bold text-lg tracking-tight text-gray-100">COBOL Modernizer</span>
     </div>
     <div className="flex items-center gap-4">
+      <ThemeSwitcher theme={theme} setTheme={setTheme} />
       <div className="relative">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
         <input 
           type="text" 
           placeholder="Search projects..." 
-          className="bg-[#002b5c] border-none rounded-full py-1.5 pl-9 pr-4 text-sm focus:ring-2 focus:ring-[#00a1e0] w-64"
+          className="bg-[#1a1a1a] border border-white/5 rounded-full py-1.5 pl-9 pr-4 text-sm focus:ring-2 focus:ring-indigo-500 w-64 text-gray-200 placeholder-gray-600"
         />
       </div>
-      <button className="p-2 hover:bg-[#002b5c] rounded-full"><Bell className="w-5 h-5" /></button>
-      <button className="p-2 hover:bg-[#002b5c] rounded-full"><Settings className="w-5 h-5" /></button>
+      <button className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-indigo-400 transition-colors"><Bell className="w-5 h-5" /></button>
+      <button className="p-2 hover:bg-white/5 rounded-full text-gray-500 hover:text-indigo-400 transition-colors"><Settings className="w-5 h-5" /></button>
       <button 
         onClick={onResetWorkspace}
-        className="flex items-center gap-2 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 rounded-md text-xs font-bold transition-all border border-red-600/30"
+        className="flex items-center gap-2 px-3 py-1.5 bg-red-900/10 hover:bg-red-900/30 text-red-400 rounded-md text-xs font-bold transition-all border border-red-900/20"
         title="Delete all projects and start fresh"
       >
         <Trash2 className="w-3.5 h-3.5" />
         Reset Workspace
       </button>
-      <div className="flex items-center gap-3 ml-2 pl-4 border-l border-[#002b5c]">
+      <div className="flex items-center gap-3 ml-2 pl-4 border-l border-white/5">
         <div className="text-right hidden sm:block">
-          <p className="text-xs font-bold">{user.displayName}</p>
-          <p className="text-[10px] text-gray-400">Developer</p>
+          <p className="text-xs font-bold text-gray-200">{user.displayName}</p>
+          <p className="text-[10px] text-gray-600">Developer</p>
         </div>
-        <img src={user.photoURL || ''} alt="avatar" className="w-8 h-8 rounded-full border border-[#00a1e0]" />
-        <button onClick={onSignOut} className="p-2 hover:bg-red-900/30 rounded-full text-red-400"><LogOut className="w-4 h-4" /></button>
+        <img src={user.photoURL || ''} alt="avatar" className="w-8 h-8 rounded-full border border-indigo-500/50" />
+        <button onClick={onSignOut} className="p-2 hover:bg-red-900/20 rounded-full text-red-400 transition-colors"><LogOut className="w-4 h-4" /></button>
       </div>
     </div>
   </nav>
 );
 
-const Sidebar = ({ projects, activeProject, onSelectProject, onCreateProject, onDeleteProject, isCollapsed, onToggle }: any) => (
+const Sidebar = ({ theme, projects, activeProject, onSelectProject, onCreateProject, onDeleteProject, isCollapsed, onToggle }: any) => (
   <div className={cn(
-    "bg-gray-50 border-r flex flex-col h-[calc(100vh-3.5rem)] transition-all duration-300 relative",
+    "border-r flex flex-col h-[calc(100vh-3.5rem)] transition-all duration-300 relative",
+    themes[theme].sidebar, themes[theme].border,
     isCollapsed ? "w-12" : "w-64"
   )}>
     <div className={cn(
-      "p-4 border-b flex items-center bg-white h-14",
+      "p-4 border-b flex items-center h-14",
+      themes[theme].sidebar, themes[theme].border,
       isCollapsed ? "justify-center" : "justify-between"
     )}>
-      {!isCollapsed && <h2 className="font-bold text-gray-700 uppercase text-xs tracking-wider">Projects</h2>}
+      {!isCollapsed && <h2 className="font-bold text-gray-400 uppercase text-xs tracking-wider">Projects</h2>}
       <button 
         onClick={onToggle}
-        className="p-1 hover:bg-gray-100 text-gray-600 rounded transition-colors"
+        className="p-1 hover:bg-white/5 text-gray-600 rounded transition-colors"
         title={isCollapsed ? "Expand Projects" : "Collapse Projects"}
       >
         {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
@@ -1067,11 +1066,11 @@ const Sidebar = ({ projects, activeProject, onSelectProject, onCreateProject, on
     </div>
     {!isCollapsed && (
       <>
-        <div className="p-4 border-b bg-white flex items-center justify-between">
-          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Action</span>
+        <div className="p-4 border-b border-white/5 bg-[#121212] flex items-center justify-between">
+          <span className="text-[10px] font-bold text-gray-600 uppercase tracking-widest">Action</span>
           <button 
             onClick={onCreateProject}
-            className="p-1 hover:bg-blue-50 text-blue-600 rounded transition-colors"
+            className="p-1 hover:bg-white/5 text-indigo-400 rounded transition-colors"
           >
             <Plus className="w-4 h-4" />
           </button>
@@ -1084,14 +1083,14 @@ const Sidebar = ({ projects, activeProject, onSelectProject, onCreateProject, on
                 className={cn(
                   "w-full text-left px-4 py-3 flex items-center gap-3 transition-all",
                   activeProject?.id === p.id 
-                    ? "bg-blue-50 border-r-4 border-blue-600 text-blue-700" 
-                    : "hover:bg-gray-100 text-gray-600"
+                    ? "bg-indigo-900/10 border-r-4 border-indigo-500 text-indigo-200" 
+                    : "hover:bg-white/5 text-gray-500"
                 )}
               >
-                <Folder className={cn("w-4 h-4", activeProject?.id === p.id ? "text-blue-600" : "text-gray-400")} />
+                <Folder className={cn("w-4 h-4", activeProject?.id === p.id ? "text-indigo-400" : "text-gray-700")} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">{p.name}</p>
-                  <p className="text-[10px] opacity-70 truncate">{p.targetLanguage}</p>
+                  <p className="text-[10px] opacity-50 truncate">{p.targetLanguage}</p>
                 </div>
               </button>
               <button 
@@ -1099,14 +1098,14 @@ const Sidebar = ({ projects, activeProject, onSelectProject, onCreateProject, on
                   e.stopPropagation();
                   onDeleteProject(p);
                 }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-all"
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}
           {projects.length === 0 && (
-            <div className="p-8 text-center text-gray-400">
+            <div className="p-8 text-center text-gray-700">
               <p className="text-xs italic">No projects yet</p>
             </div>
           )}
@@ -1120,19 +1119,36 @@ const TabButton = ({ active, label, icon: Icon, onClick, color }: any) => (
   <button
     onClick={onClick}
     className={cn(
-      "flex items-center gap-2 px-6 py-3 text-sm font-medium transition-all border-b-2",
+      "flex items-center gap-2 px-6 py-3 text-sm font-bold border-b-2 cursor-pointer",
       active 
-        ? `border-${color}-600 text-${color}-600 bg-white` 
-        : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+        ? "border-indigo-500 text-indigo-300 bg-white/5" 
+        : "border-transparent text-gray-500 hover:text-gray-300"
     )}
-    style={active ? { borderColor: color, color: color } : {}}
   >
-    <Icon className="w-4 h-4" />
+    <Icon className={cn("w-4 h-4", active ? "text-indigo-400" : "text-gray-600")} />
     {label}
   </button>
 );
 
+const ThemeSwitcher = ({ theme, setTheme }: any) => (
+  <div className={cn("flex items-center gap-2 rounded-full p-1 border", themes[theme].border, themes[theme].sidebar)}>
+    {Object.keys(themes).map((t) => (
+      <button
+        key={t}
+        onClick={() => setTheme(t)}
+        className={cn(
+          "w-6 h-6 rounded-full transition-all",
+          theme === t ? "ring-2 ring-indigo-500 ring-offset-2" : "opacity-50 hover:opacity-100",
+          t === 'dark' ? 'bg-gray-900' : 'bg-white border border-gray-300'
+        )}
+        title={t}
+      />
+    ))}
+  </div>
+);
+
 export default function App() {
+  const [theme, setTheme] = useState<keyof typeof themes>('dark');
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
@@ -1166,14 +1182,14 @@ export default function App() {
   const [isGeneratingData, setIsGeneratingData] = useState(false);
   
   const [tabConfigs, setTabConfigs] = useState<TabConfig[]>([
-    { id: 'source', label: 'Source Code', icon: FileCode, color: '#2563eb', visible: true },
-    { id: 'destination', label: 'Destination Code', icon: Code2, color: '#059669', visible: true },
-    { id: 'rules', label: 'Rules', icon: ScrollText, color: '#7c3aed', visible: true },
-    { id: 'repository', label: 'Repository', icon: Database, color: '#db2777', visible: true },
-    { id: 'ide', label: 'IDE', icon: Play, color: '#ea580c', visible: true },
-    { id: 'report', label: 'Report', icon: BarChart3, color: '#d97706', visible: true },
-    { id: 'compare', label: 'Compare', icon: ArrowLeftRight, color: '#4b5563', visible: true },
-    { id: 'synthetic-data', label: 'Synthetic Data', icon: LayoutGrid, color: '#0891b2', visible: true },
+    { id: 'source', label: 'Source Code', icon: FileCode, color: '#a78bfa', visible: true },
+    { id: 'destination', label: 'Destination Code', icon: Code2, color: '#a78bfa', visible: true },
+    { id: 'rules', label: 'Rules', icon: ScrollText, color: '#a78bfa', visible: true },
+    { id: 'repository', label: 'Repository', icon: Database, color: '#a78bfa', visible: true },
+    { id: 'ide', label: 'IDE', icon: Play, color: '#a78bfa', visible: true },
+    { id: 'report', label: 'Report', icon: BarChart3, color: '#a78bfa', visible: true },
+    { id: 'compare', label: 'Compare', icon: ArrowLeftRight, color: '#a78bfa', visible: true },
+    { id: 'synthetic-data', label: 'Synthetic Data', icon: LayoutGrid, color: '#a78bfa', visible: true },
     { id: 'input', label: 'Input Files', icon: FolderOpen, color: '#4f46e5', visible: false },
     { id: 'output', label: 'Output Files', icon: CheckCircle, color: '#16a34a', visible: false },
   ]);
@@ -2757,7 +2773,7 @@ export default function App() {
             </div>
           </div>
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">ATLAS Modernizer</h1>
+            <h1 className="text-4xl font-bold tracking-tight">COBOL Modernizer</h1>
             <p className="text-gray-400">Enterprise COBOL Modernization Platform</p>
           </div>
           <button 
@@ -2776,11 +2792,13 @@ export default function App() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-white overflow-hidden">
+    <div className={cn("h-screen flex flex-col overflow-hidden", themes[theme].main, themes[theme].text, themes[theme].border)}>
       <Toaster position="top-right" />
       <Navbar 
         user={user} 
         onSignOut={handleSignOut} 
+        theme={theme}
+        setTheme={setTheme}
         onResetWorkspace={async () => {
           if (confirm('Are you sure you want to reset your workspace? This will delete ALL your projects and data permanently.')) {
             try {
@@ -2801,6 +2819,7 @@ export default function App() {
       
       <div className="flex flex-1 overflow-hidden">
         <Sidebar 
+          theme={theme}
           projects={projects} 
           activeProject={activeProject} 
           onSelectProject={setActiveProject}
@@ -2810,7 +2829,7 @@ export default function App() {
           onToggle={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
         />
 
-        <main className="flex-1 flex flex-col overflow-hidden">
+        <main className={cn("flex-1 flex flex-col overflow-hidden", themes[theme].main)}>
           {activeProject ? (
             <>
               {/* Project Header */}
@@ -2833,22 +2852,26 @@ export default function App() {
                   </h1>
                 </div>
                 <div className="flex items-center gap-3">
-                  <button 
-                    onClick={handleListRules}
-                    disabled={!activeElement || isListingRules}
-                    className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md text-sm font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
-                  >
-                    {isListingRules ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <ScrollText className="w-4 h-4" />}
-                    List Rules
-                  </button>
-                  <button 
-                    onClick={handleModernize}
-                    disabled={!activeElement || isModernizing}
-                    className="flex items-center gap-2 px-4 py-2 bg-[#00a1e0] text-white rounded-md text-sm font-bold hover:bg-[#008bc2] disabled:opacity-50 transition-all shadow-md"
-                  >
-                    {isModernizing ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Play className="w-4 h-4" />}
-                    Convert Code
-                  </button>
+                  {activeTab === 'source' && (
+                    <>
+                      <button 
+                        onClick={handleListRules}
+                        disabled={!activeElement || isListingRules}
+                        className="flex items-center gap-2 px-4 py-2 bg-amber-500 text-white rounded-md text-sm font-bold hover:bg-amber-600 disabled:opacity-50 transition-all shadow-md"
+                      >
+                        {isListingRules ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <ScrollText className="w-4 h-4" />}
+                        List Rules
+                      </button>
+                      <button 
+                        onClick={handleModernize}
+                        disabled={!activeElement || isModernizing}
+                        className="flex items-center gap-2 px-4 py-2 bg-[#00a1e0] text-white rounded-md text-sm font-bold hover:bg-[#008bc2] disabled:opacity-50 transition-all shadow-md"
+                      >
+                        {isModernizing ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Play className="w-4 h-4" />}
+                        Convert Code
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -3388,20 +3411,36 @@ export default function App() {
                                 Modernization Report
                               </h3>
                               {report ? (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                    <p className="text-xs text-blue-600 font-bold uppercase">Total Lines</p>
-                                    <p className="text-3xl font-bold text-blue-900">{report.totalLines}</p>
+                                <div className="space-y-4">
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                      <p className="text-xs text-blue-600 font-bold uppercase">Total Lines</p>
+                                      <p className="text-3xl font-bold text-blue-900">{report.totalLines}</p>
+                                    </div>
+                                    <div className="bg-green-50 p-4 rounded-xl border border-green-100">
+                                      <p className="text-xs text-green-600 font-bold uppercase">Converted Lines</p>
+                                      <p className="text-3xl font-bold text-green-900">{report.convertedLines}</p>
+                                    </div>
+                                    <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+                                      <p className="text-xs text-purple-600 font-bold uppercase">Success Rate</p>
+                                      <p className="text-3xl font-bold text-purple-900">
+                                        {report.totalLines > 0 ? Math.round((report.convertedLines / report.totalLines) * 100) : 0}%
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div className="bg-green-50 p-4 rounded-xl border border-green-100">
-                                    <p className="text-xs text-green-600 font-bold uppercase">Converted Lines</p>
-                                    <p className="text-3xl font-bold text-green-900">{report.convertedLines}</p>
-                                  </div>
-                                  <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
-                                    <p className="text-xs text-purple-600 font-bold uppercase">Success Rate</p>
-                                    <p className="text-3xl font-bold text-purple-900">
-                                      {Math.round((report.convertedLines / report.totalLines) * 100)}%
-                                    </p>
+                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-red-50 p-4 rounded-xl border border-red-100">
+                                      <p className="text-xs text-red-600 font-bold uppercase">Errors</p>
+                                      <p className="text-3xl font-bold text-red-900">{report.errors.length}</p>
+                                    </div>
+                                    <div className="bg-amber-50 p-4 rounded-xl border border-amber-100">
+                                      <p className="text-xs text-amber-600 font-bold uppercase">Warnings</p>
+                                      <p className="text-3xl font-bold text-amber-900">{report.warnings.length}</p>
+                                    </div>
+                                    <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                      <p className="text-xs text-gray-600 font-bold uppercase">Unsupported Statements</p>
+                                      <p className="text-3xl font-bold text-gray-900">{report.unsupportedStatements.length}</p>
+                                    </div>
                                   </div>
                                 </div>
                               ) : (
@@ -3419,8 +3458,8 @@ export default function App() {
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-4">
                                   <div className="flex items-center gap-2">
-                                    <FolderOpen className="w-5 h-5 text-blue-600" />
-                                    <h3 className="text-lg font-bold">Project Repository</h3>
+                                    <FolderOpen className={cn("w-5 h-5", `text-${themes[theme].accent}-600`)} />
+                                    <h3 className={cn("text-lg font-bold", themes[theme].text)}>Project Repository</h3>
                                   </div>
                                   <button 
                                     onClick={() => setIsRepoMaximized(!isRepoMaximized)}
@@ -4329,7 +4368,7 @@ export default function App() {
               <div className="max-w-md space-y-6">
                 <div className="bg-white p-12 rounded-3xl shadow-xl border border-gray-100">
                   <Layout className="w-20 h-20 text-blue-600 mx-auto mb-6 opacity-20" />
-                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Welcome to ATLAS</h2>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-4">Welcome to COBOL Modernizer</h2>
                   <p className="text-gray-500 mb-8">Select a project from the sidebar or create a new one to start modernizing your COBOL infrastructure.</p>
                   <button 
                     onClick={() => setIsCreatingProject(true)}

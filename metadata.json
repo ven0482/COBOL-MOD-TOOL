@@ -1,5 +1,5 @@
 {
-  "name": "ATLAS COBOL & Python IDE",
+  "name": "COBOL Modernizer",
   "description": "Enterprise-grade COBOL and Python modernization platform with a dedicated IDE for running, debugging, and testing legacy code against modern implementations.",
   "requestFramePermissions": []
 }
