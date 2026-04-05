@@ -6,7 +6,7 @@ export async function convertCobolToPython(
   cobolCode: string,
   context?: string
 ) {
-  const model = "gemini-3-flash-preview";
+  const model = "models/gemini-2.0-flash";
   
   const prompt = `
     Convert the following COBOL code to modern Python.
@@ -31,7 +31,7 @@ export async function convertCobolToPython(
 export async function explainCobolCode(
   cobolCode: string
 ) {
-  const model = "gemini-3-flash-preview";
+  const model = "models/gemini-2.0-flash";
   
   const prompt = `
     Explain the following COBOL code in detail. 

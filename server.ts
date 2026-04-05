@@ -1,23 +1,36 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import type { PathLike } from "fs";
+// @ts-expect-error fs-extra lacks type definitions
 import fs from "fs-extra";
 import { exec } from "child_process";
 import { promisify } from "util";
+import dotenv from "dotenv";
+
+// Load environment variables early
+console.log('[SERVER] Loading environment variables...');
+dotenv.config({ path: '.env.local' });
+console.log('[SERVER] VITE_GEMINI_API_KEY:', process.env.VITE_GEMINI_API_KEY ? 'SET' : 'NOT SET');
+console.log('[SERVER] NODE_ENV:', process.env.NODE_ENV || 'undefined (will use development)');
 
 const execPromise = promisify(exec);
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
+  try {
+    console.log('[SERVER] Initializing Express app...');
+    const app = express();
+    const PORT = 3000;
 
-  app.use(express.json());
+    app.use(express.json());
 
-  const INPUT_DIR = path.join(process.cwd(), "input_repository");
-  const OUTPUT_DIR = path.join(process.cwd(), "output_repository");
+    const INPUT_DIR = path.join(process.cwd(), "input_repository");
+    const OUTPUT_DIR = path.join(process.cwd(), "output_repository");
 
-  await fs.ensureDir(INPUT_DIR);
-  await fs.ensureDir(OUTPUT_DIR);
+    console.log('[SERVER] Ensuring directories exist...');
+    await fs.ensureDir(INPUT_DIR);
+    await fs.ensureDir(OUTPUT_DIR);
+    console.log('[SERVER] Directories ready: input_repository, output_repository');
 
   // API Routes
   app.get("/api/files", async (req, res) => {
@@ -197,7 +210,7 @@ async function startServer() {
         await fs.writeFile(path.join(OUTPUT_DIR, mainOutputFileName), stdout);
 
         const finalFiles = await fs.readdir(process.cwd());
-        const newFiles = finalFiles.filter(f => !initialFiles.has(f) && f !== localBin);
+        const newFiles = finalFiles.filter((f: string) => !initialFiles.has(f) && f !== localBin);
         
         for (const f of newFiles) {
           await fs.copy(path.join(process.cwd(), f), path.join(OUTPUT_DIR, f));
@@ -261,7 +274,7 @@ async function startServer() {
 
         // Identify and copy new files created by the script
         const finalFiles = await fs.readdir(process.cwd());
-        const newFiles = finalFiles.filter(f => !initialFiles.has(f) && f !== path.basename(tempFile));
+        const newFiles = finalFiles.filter((f: string) => !initialFiles.has(f) && f !== path.basename(tempFile));
         
         for (const f of newFiles) {
           await fs.copy(path.join(process.cwd(), f), path.join(OUTPUT_DIR, f));
@@ -318,14 +331,16 @@ async function startServer() {
         if (language === 'cobol') {
           await execPromise("cobc --version");
           const binFile = `temp_${Date.now()}`;
-          await execPromise(`cobc -x -o ${binFile} ${tempFile}`);
-          const { stdout, stderr } = await execPromise(`./${binFile}`);
+          const cobolResult = await execPromise(`cobc -x -o ${binFile} ${tempFile}`);
+          const runResult = await execPromise(`./${binFile}`);
+          const stdout = runResult.stdout;
+          const stderr = runResult.stderr;
           
           const mainOutputFileName = `output_${Date.now()}.txt`;
           await fs.writeFile(path.join(OUTPUT_DIR, mainOutputFileName), stdout);
           
           const finalFiles = await fs.readdir(process.cwd());
-          const newFiles = finalFiles.filter(f => !initialFiles.has(f) && f !== path.basename(tempFile) && f !== binFile);
+          const newFiles = finalFiles.filter((f: string) => !initialFiles.has(f) && f !== path.basename(tempFile) && f !== binFile);
           
           for (const f of newFiles) {
             await fs.copy(path.join(process.cwd(), f), path.join(OUTPUT_DIR, f));
@@ -337,14 +352,16 @@ async function startServer() {
         } else if (language === 'c') {
           await execPromise("gcc --version");
           const binFile = `temp_${Date.now()}`;
-          await execPromise(`gcc -o ${binFile} ${tempFile}`);
-          const { stdout, stderr } = await execPromise(`./${binFile}`);
+          const gccResult = await execPromise(`gcc -o ${binFile} ${tempFile}`);
+          const runResult = await execPromise(`./${binFile}`);
+          const stdout = runResult.stdout;
+          const stderr = runResult.stderr;
           
           const mainOutputFileName = `output_${Date.now()}.txt`;
           await fs.writeFile(path.join(OUTPUT_DIR, mainOutputFileName), stdout);
           
           const finalFiles = await fs.readdir(process.cwd());
-          const newFiles = finalFiles.filter(f => !initialFiles.has(f) && f !== path.basename(tempFile) && f !== binFile);
+          const newFiles = finalFiles.filter((f: string) => !initialFiles.has(f) && f !== path.basename(tempFile) && f !== binFile);
           
           for (const f of newFiles) {
             await fs.copy(path.join(process.cwd(), f), path.join(OUTPUT_DIR, f));
@@ -363,7 +380,7 @@ async function startServer() {
         });
       } finally {
         // Cleanup
-        const tempFiles = (await fs.readdir(process.cwd())).filter(f => f.startsWith('temp_'));
+        const tempFiles = (await fs.readdir(process.cwd())).filter((f: string) => f.startsWith('temp_'));
         for (const f of tempFiles) {
           await fs.remove(path.join(process.cwd(), f));
         }
@@ -385,11 +402,16 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    console.log('[SERVER] Setting up Vite middleware for development...');
     const hmrPort = Number(process.env.VITE_HMR_PORT || 24679);
+    const disableHmr = process.env.DISABLE_HMR === "true";
+    console.log('[SERVER] HMR Port:', hmrPort, '| Disabled:', disableHmr);
+    
+    console.log('[SERVER] Creating Vite dev server...');
     const vite = await createViteServer({
       server: {
         middlewareMode: true,
-        hmr: process.env.DISABLE_HMR === "true"
+        hmr: disableHmr
           ? false
           : {
               port: hmrPort,
@@ -398,8 +420,11 @@ async function startServer() {
       },
       appType: "spa",
     });
+    console.log('[SERVER] Vite dev server created successfully');
     app.use(vite.middlewares);
+    console.log('[SERVER] Vite middleware attached to Express');
   } else {
+    console.log('[SERVER] Production mode: serving static files from dist/');
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -407,16 +432,30 @@ async function startServer() {
     });
   }
 
+  console.log('[SERVER] Starting HTTP server on port', PORT);
   await new Promise<void>((resolve, reject) => {
     const server = app.listen(PORT, "0.0.0.0", () => {
-      console.log(`Server running on http://localhost:${PORT}`);
+      console.log(`[SERVER] ✓ Server successfully running on http://localhost:${PORT}`);
+      console.log(`[SERVER] Open http://localhost:${PORT} in your browser`);
       resolve();
     });
     server.on("error", reject);
   });
+  } catch (err) {
+    console.error('[SERVER] Error during server setup:', err);
+    throw err;
+  }
 }
 
+console.log('[SERVER] ====== COBOL MOD TOOL Server ======');
+console.log('[SERVER] Starting server initialization...');
+
 startServer().catch((err) => {
-  console.error("Server startup failed:", err);
+  console.error('[SERVER] ✗ FATAL ERROR - Server startup failed!');
+  console.error('[SERVER] Error message:', err?.message || String(err));
+  console.error('[SERVER] Error details:', err);
+  if (err?.stack) {
+    console.error('[SERVER] Stack trace:', err.stack);
+  }
   process.exit(1);
 });

@@ -577,6 +577,9 @@ const IDERunner = ({
 
   const handleSimulateCompile = async (codeToCompile: string) => {
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `
         Act as a COBOL compiler. Analyze the following COBOL code and confirm if it has any syntax errors.
@@ -591,7 +594,7 @@ const IDERunner = ({
         - "message": string
       `;
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -632,6 +635,9 @@ const IDERunner = ({
     setIsCheckingSyntax(true);
     setSyntaxErrors([]);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       const prompt = `
         Act as a code linter for ${language.toUpperCase()}. Analyze the following code for syntax errors.
@@ -643,7 +649,7 @@ const IDERunner = ({
         - "errors": { "line": number, "message": string }[]
       `;
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -671,6 +677,9 @@ const IDERunner = ({
 
   const handleSimulateRun = async (codeToRun: string, langToRun: string, binaryName?: string) => {
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       let allInputContent = "";
@@ -716,7 +725,7 @@ const IDERunner = ({
         `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -1246,7 +1255,17 @@ const TabButton = ({ active, label, icon: Icon, onClick, color }: any) => (
 );
 
 export default function App() {
+  console.log('App: Rendering COBOL MOD TOOL');
   const theme: keyof typeof themes = 'regular';
+  
+  // Add global error handler
+  useEffect(() => {
+    const errorHandler = (event: ErrorEvent) => {
+      console.error('Global error:', event.error);
+    };
+    window.addEventListener('error', errorHandler);
+    return () => window.removeEventListener('error', errorHandler);
+  }, []);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
@@ -1408,11 +1427,45 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      setLoading(false);
-    });
-    return unsubscribe;
+    console.log('App: Initializing auth state listener');
+    let isMounted = true;
+    let unsubscribe: any = null;
+    
+    try {
+      unsubscribe = onAuthStateChanged(auth, (u) => {
+        console.log('App: Auth state changed, user:', u?.email || 'no user');
+        if (isMounted) {
+          setUser(u);
+          setLoading(false);
+        }
+      }, (error) => {
+        console.error('App: Auth error:', error?.message || error);
+        if (isMounted) {
+          setLoading(false);
+        }
+      });
+    } catch (e) {
+      console.error('App: Auth listener setup failed:', e);
+      if (isMounted) {
+        setLoading(false);
+      }
+    }
+    
+    // Longer timeout for auth init
+    const timeout = setTimeout(() => {
+      console.log('App: Auth timeout - forcing app to load after 5 seconds');
+      if (isMounted && unsubscribe) {
+        setLoading(false);
+      }
+    }, 5000);
+    
+    return () => {
+      isMounted = false;
+      clearTimeout(timeout);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1786,6 +1839,14 @@ export default function App() {
 
     setIsListingRules(true);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
+      
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
+      
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
@@ -1813,7 +1874,7 @@ export default function App() {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
@@ -1836,8 +1897,52 @@ export default function App() {
       if (!response || !response.text) {
         throw new Error("Empty response from AI model");
       }
+      
+      let rulesText = response.text.trim();
+      console.log('Raw rules response length:', rulesText.length);
+      console.log('First 300 chars:', rulesText.substring(0, 300));
+      
+      // Strip markdown code blocks if present - try multiple patterns
+      if (rulesText.includes('```')) {
+        const patterns = [
+          /```json\n?([\s\S]*?)```/i,
+          /```([\s\S]*?)```/
+        ];
+        for (const pattern of patterns) {
+          const match = rulesText.match(pattern);
+          if (match && match[1]) {
+            rulesText = match[1].trim();
+            console.log('Extracted rules from markdown, new length:', rulesText.length);
+            break;
+          }
+        }
+      }
 
-      const extractedRules = JSON.parse(response.text);
+      // Remove any leading/trailing text before JSON array
+      const jsonStart = rulesText.indexOf('[');
+      if (jsonStart > 0) {
+        rulesText = rulesText.substring(jsonStart);
+      }
+      const jsonEnd = rulesText.lastIndexOf(']');
+      if (jsonEnd > 0 && jsonEnd < rulesText.length - 1) {
+        rulesText = rulesText.substring(0, jsonEnd + 1);
+      }
+
+      console.log('Cleaned rules text for parsing:', rulesText.substring(0, 200));
+      
+      let extractedRules;
+      try {
+        extractedRules = JSON.parse(rulesText);
+      } catch (parseErr) {
+        console.error('Failed to parse rules JSON:', parseErr, 'Text:', rulesText);
+        throw new Error(`Failed to parse extraction rules: ${parseErr instanceof Error ? parseErr.message : 'Unknown error'}`);
+      }
+      
+      if (!Array.isArray(extractedRules)) {
+        throw new Error('Rules response is not an array');
+      }
+
+      console.log('Extracted', extractedRules.length, 'rules');
 
       for (const ruleData of extractedRules) {
         // Check if rule already exists for this element
@@ -1915,9 +2020,10 @@ export default function App() {
 
       toast.success('Rules extracted and documented successfully');
       setActiveTab('rules');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error listing rules:', err);
-      toast.error('Failed to extract rules');
+      const errorMsg = err?.message || 'Failed to extract rules';
+      toast.error(errorMsg);
     } finally {
       setIsListingRules(false);
     }
@@ -1936,6 +2042,10 @@ export default function App() {
     setIsModernizing(true);
     try {
       console.log('Starting modernization for:', elementName);
+      
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
@@ -1958,7 +2068,7 @@ export default function App() {
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
       });
 
@@ -1966,9 +2076,50 @@ export default function App() {
         throw new Error("Empty response from AI model");
       }
 
-      const convertedCode = response.text;
+      let convertedCode = response.text.trim();
+      console.log('Raw response length:', convertedCode.length);
+      console.log('First 200 chars:', convertedCode.substring(0, 200));
+      
+      // Strip markdown code blocks - handle multiple patterns
+      if (convertedCode.includes('```')) {
+        // Try to extract code from markdown blocks
+        const patterns = [
+          /```(?:java|python|py|js|typescript|ts|csharp|cs|go|rust|c\+\+)\n?([\s\S]*?)```/i,
+          /```\n?([\s\S]*?)```/,  // Generic markdown block
+          /```([\s\S]*?)```/       // Fallback for any markdown
+        ];
+        
+        for (const pattern of patterns) {
+          const match = convertedCode.match(pattern);
+          if (match && match[1]) {
+            convertedCode = match[1].trim();
+            console.log('Extracted from markdown, new length:', convertedCode.length);
+            break;
+          }
+        }
+      }
 
-      const lines = elementContent.split('\n').length;
+      // Remove any leading/trailing whitespace and common prefixes
+      convertedCode = convertedCode.trim();
+      if (convertedCode.startsWith('Here is') || convertedCode.startsWith('Here\'s')) {
+        // Skip introductory text
+        const lines = convertedCode.split('\n');
+        const codeStartIndex = lines.findIndex(l => 
+          l.trim().startsWith('public') || 
+          l.trim().startsWith('def ') || 
+          l.trim().startsWith('class ') ||
+          l.trim().startsWith('interface ')
+        );
+        if (codeStartIndex > 0) {
+          convertedCode = lines.slice(codeStartIndex).join('\n').trim();
+        }
+      }
+
+      if (!convertedCode) {
+        throw new Error('AI conversion produced empty code. Please try again.');
+      }
+
+      console.log('Final converted code length:', convertedCode.length);
       const programName = (elementName || 'UNKNOWN').split('.')[0];
       const statsPrompt = `
 You are an expert COBOL analyzer and modernization assistant.
@@ -2085,7 +2236,7 @@ ${elementContent}
       let programStatistics = createDefaultProgramStats(programName, lines);
       try {
         const statsResponse = await ai.models.generateContent({
-          model: "gemini-3.1-pro-preview",
+          model: "models/gemini-2.0-flash",
           contents: statsPrompt,
           config: { responseMimeType: "application/json" }
         });
@@ -2110,10 +2261,12 @@ ${elementContent}
       };
 
       // Update element with converted code
+      console.log('Updating element with converted code, length:', convertedCode.length);
       await updateDoc(doc(db, `projects/${projectId}/elements`, elementId), {
         convertedContent: convertedCode,
         status: 'Completed'
       });
+      console.log('Element updated successfully');
 
       // Save report
       await addDoc(collection(db, `projects/${projectId}/elements/${elementId}/reports`), {
@@ -2197,6 +2350,14 @@ ${elementContent}
       setActiveTab('destination');
     } catch (err: any) {
       console.error('Modernization error:', err);
+      console.error('Error details:', {
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+        stack: err?.stack
+      });
+      const errorMsg = err?.message || 'Modernization failed';
+      toast.error(errorMsg);
       handleFirestoreError(err, OperationType.UPDATE, `projects/${projectId}/elements/${elementId}`);
       
       try {
@@ -2215,6 +2376,9 @@ ${elementContent}
     if (!activeProject) return;
     setIsGeneratingData(true);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       let sourceContent = "";
@@ -2244,7 +2408,7 @@ ${elementContent}
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
       });
 
@@ -2635,6 +2799,9 @@ ${elementContent}
 
     setIsGeneratingTest(true);
     try {
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
@@ -2657,7 +2824,7 @@ ${elementContent}
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -2751,6 +2918,9 @@ ${elementContent}
         return;
       }
 
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error('Gemini API key not configured. Please add VITE_GEMINI_API_KEY to your .env file');
+      }
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
       
       const prompt = `
@@ -2776,7 +2946,7 @@ ${elementContent}
       `;
 
       const response = await ai.models.generateContent({
-        model: "gemini-3.1-pro-preview",
+        model: "models/gemini-2.0-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
@@ -3034,7 +3204,34 @@ ${elementContent}
     toast.success('Comparison complete with one-to-all matching');
   };
 
-  if (loading) return <div className="h-screen flex items-center justify-center bg-gray-50"><Toaster position="top-right" /><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>;
+  if (loading) return (
+    <div style={{
+      height: '100vh',
+      width: '100vw',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#f9fafb',
+      gap: '1rem',
+      fontFamily: 'system-ui, -apple-system, sans-serif'
+    }}>
+      <Toaster position="top-right" />
+      <svg width="48" height="48" viewBox="0 0 48 48" style={{
+        animation: 'spin 1s linear infinite'
+      }}>
+        <circle cx="24" cy="24" r="20" fill="none" stroke="#2563eb" strokeWidth="4" strokeDasharray="31.4 94.2" />
+      </svg>
+      <h1 style={{ fontSize: '18px', fontWeight: '600', color: '#374151', margin: 0 }}>Loading COBOL MOD TOOL...</h1>
+      <p style={{ fontSize: '12px', color: '#9ca3af', margin: 0 }}>If this takes more than 5 seconds, refresh the page</p>
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
 
   if (!user) {
     return (

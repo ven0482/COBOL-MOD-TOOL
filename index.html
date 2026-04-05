@@ -3,8 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>COBOL MOD TOOL</title>
     <script>
+      console.log('index.html: Page loading...');
       // Early suppression of ResizeObserver errors
       window.addEventListener('error', function(e) {
         if (e.message === 'ResizeObserver loop completed with undelivered notifications.' || 
@@ -15,9 +16,37 @@
         }
       });
     </script>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #f9fafb;
+      }
+      #root {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .loading-fallback {
+        text-align: center;
+        color: #666;
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="loading-fallback">
+        <p>Loading...</p>
+        <p style="font-size: 12px; color: #999;">If this message persists, check browser console (F12)</p>
+      </div>
+    </div>
+    <script>
+      console.log('index.html: Checking root element...');
+      var rootEl = document.getElementById('root');
+      console.log('index.html: Root element found:', rootEl !== null);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
